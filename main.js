@@ -1,1 +1,1 @@
-console.log(`We got to main!`)
+let test = require('./app/test_module.js')

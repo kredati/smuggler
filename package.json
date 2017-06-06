@@ -1,0 +1,22 @@
+{
+  "name": "smuggler",
+  "version": "0.0.1",
+  "description": "Node style exports in browser.",
+  "main": "main.js",
+  "directories": {
+    "lib": "lib"
+  },
+  "scripts": {
+    "test": "jasmine"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/kredati/smuggler.git"
+  },
+  "author": "Scott Richmond",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/kredati/smuggler/issues"
+  },
+  "homepage": "https://github.com/kredati/smuggler#readme"
+}
