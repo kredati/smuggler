@@ -22,28 +22,29 @@ if (typeof module !== `undefined`)
     `Is there is a conflict with another module loading system?`)
 
 ;((global) => {
-
-  console.log(`Starting smuggler bootstrap.`)
-
   // get our main script, to run at the end
   let smugglerScript = document.currentScript,
-    main = smugglerScript.getAttribute(`main`),
-    configScript = smugglerScript.getAttribute(`config`)
+    main = `./${smugglerScript.getAttribute('main')}`,
+    configScript = `./${smugglerScript.getAttribute('config')}`
 
   // default value for config location
-  configScript = configScript || `smuggler.config.js`
+  configScript = configScript || `./smuggler.config.js`
 
   // private state: config and modules
   let modules = {}, config = {}
 
-  // super handy helper function
-  let pair = (key, value) => ({[key]: value})
+  // super handy helper functions
+  let pair = (key, value) => ({[key]: value}),
+    ref = (prop) => { let result = prop; return result }
 
   ////////////// CORE LOADING FUNCTIONS
   // load a script! // returns a promise for async/await goodness
-  let load = (path) => {
+  // note that exporting is a *function* that lazy-evaluates the object
+  // to which the module binds, if a module
+  let load = (exporting) => (path) => {
+    if (!exporting) exporting = () => true
     let head = document.getElementsByTagName('head').item(0),
-      script = document.createElement('script')
+        script = document.createElement('script')
 
     script.setAttribute('type', 'text/javascript')
     script.setAttribute('src', `${path}`)
@@ -52,46 +53,63 @@ if (typeof module !== `undefined`)
 
     return new Promise((resolve, reject) => {
       script.addEventListener('load',
-        (e) => resolve(path))
+        onLoad(resolve, reject)(exporting)(path))
       script.addEventListener('error',
-        (e) => reject(`Failed to load file at ${path}.`))
+        (e) => reject(Error(`Failed to load file at ${path}.`)))
     })
+  }
+
+  let onLoad = (resolve, reject) => (exporting) => (path) => () => {
+    let exports = exporting()
+
+    if (!exports) reject(Error(`${path} failed to export to ${exports}`))
+    resolve({path, exports})
   }
 
   // Loads an array of files asynchronously and recursively (!!!)
   // Calls beforeEach and afterEach before and after loading,
   // passes the current file path to each function
-  let loadFiles = async (files, beforeEach, afterEach) => {
-    let [current, ...remaining] = files
+  let loadFiles = (exporting) => async (files, beforeEach, afterEach) => {
+      let [current, ...remaining] = files
 
-    if (!current) return
+      if (!current) return {}
 
-    if (beforeEach) beforeEach(current)
-    await load(current)
-    if (afterEach) afterEach(current)
-    await loadFiles(remaining, beforeEach, afterEach)
-  }
-
-  let loadingError = (file) => {
-    throw Error(`Failed to load ${file}: check the file location.`)
+      if (beforeEach) beforeEach(current)
+      let results = await load(exporting)(current),
+        {path, exports} = results
+      if (afterEach) afterEach(results)
+      let others = await loadFiles(exporting)(remaining, beforeEach, afterEach)
+      return Object.assign(pair(path, exports), others)
   }
 
   //////////// This is where the magic happens
   // bootstrap smuggler and then load the application
   let bootstrap = async () => {
-    // console.log(`Loading config.`)
-    await load(`./${configScript}`)
-    config = parseConfig(smuggler.config)
-    // console.log(`Loading libraries.`)
-    await loadFiles(config.libraries)
-    // console.log(`Loading modules.`)
-    await loadFiles(config.modules, cacheModule, bindModule)
-    // console.log(`Loading main.`)
-    module.loading = `./${main}`
-    await load(main)
-    // console.log(`Cleaning up.`)
+    let rawConfig = await load(() => smuggler.config)(configScript)
+
+    config = parseConfig(rawConfig.exports)
+
+    let libs = await loadFiles()(config.libraries)
+
+    modules = await loadFiles(() => module.exports)
+      (config.modules, cacheModule, saveModule)
+
+    module.loading = main
+    let final = await load()(main)
+
     cleanUp()
-    // console.log(`Done loading!`)
+  }
+
+  let cacheModule = (path) => {
+    if (module.loading)
+      throw Error(`Didn't complete loading ${modules.loading}`)
+
+    module.loading = path
+  }
+
+  let saveModule = ({path, exports}) => {
+    modules = Object.assign(modules, pair(path, exports))
+    module.loading = null
   }
 
   /////////// Synchronous loading functions
@@ -115,37 +133,7 @@ if (typeof module !== `undefined`)
     delete global.smuggler
   }
 
-  // Pulls whatever a module binds to module.exports and saves it
-  // in modules like so: {full module path : exports}
-  let bindModule = (path) => {
-    // console.log(`Binding module ${name}`)
-
-    if (!module.exports)
-      throw Error(`Module ${name} did not bind module.exports ` +
-        `and cannot be loaded. This may be because of a script error.`)
-
-    let exports = module.exports
-
-    modules = Object.assign(modules, pair(path, exports))
-    // console.log(`Modules now contains ${Object.keys(modules)}`)
-
-    module.exports = null
-    module.loading = null
-  }
-
-  // Stores whatever module we're loading so `require` calls in modules
-  // are relative, not absolute (à la node)
-  let cacheModule = (path) => {
-    // console.log(`Caching module ${name}`)
-
-    if (module.loading)
-      throw Error(`Did not successfully bind module ${module.loading}.`)
-
-    module.loading = path
-  }
-
   /////////////// DEFINE require
-
   // helper functions to parse relative paths
   let parsePath = (pathToFile) => {
     let atoms = pathToFile.split('/'),
@@ -181,8 +169,6 @@ if (typeof module !== `undefined`)
 
   // the require goodness // it's remarkably easy!
   let require = (path) => {
-    // console.log(`Requiring ${path} from ${module.loading}`)
-
     let loadingFrom = parsePath(module.loading),
       relative = parsePath(path),
       absolute = computePath(relative.path, loadingFrom.path),
