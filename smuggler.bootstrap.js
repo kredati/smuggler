@@ -29,22 +29,24 @@ if (typeof module !== `undefined`) throw Error(`module.exports already exists. I
   let pair = (key, value) => ({[key]: value})
 
   // load a script!
-  let load = (path, onLoad, onError) => {
-    console.log(`Loading ${path}.`)
 
+  let load = (path) => {
     let head = document.getElementsByTagName('head').item(0),
       script = document.createElement('script')
 
     script.setAttribute('type', 'text/javascript')
     script.setAttribute('src', `${path}`)
 
-    script.addEventListener('load', e => onLoad(path, e))
-    script.addEventListener('error', e => onError(path, e))
-
     head.appendChild(script)
+
+    return new Promise((resolve, reject) => {
+      script.addEventListener('load', (e) => resolve(path))
+      script.addEventListener('error', (e) => reject(`Failed to load file at ${path}.`))
+    })
   }
 
   let parseConfig = (rawConfig) => {
+    console.log(rawConfig)
     let libs = rawConfig.libraries.map(
       (lib) => `${rawConfig.libraryPath}${lib}`
     ),
@@ -56,48 +58,89 @@ if (typeof module !== `undefined`) throw Error(`module.exports already exists. I
   }
   global.parseConfig = parseConfig
 
-  let loadConfig = () =>
-    load('./smuggler.config.js',
-         () => {
-           console.log('Loaded config.')
-           config = parseConfig(smuggler.config)
-           loadLibs()
-         },
-         () => { throw Error(`Failed to load config file at ./smuggler.config.js.`) }
-       )
+  let loadConfig_promise = () =>
+    load('./smuggler.config.js')
+      .then((path) => {
+        console.log(`Loaded config at ${path}.`)
+        config = parseConfig(smuggler.config)
+        loadLibs()
+      })
+      .catch((msg) => { throw Error(msg) })
+
+  let bootstrap = async () => {
+    await load('./smuggler.config.js')
+    config = parseConfig(smuggler.config)
+    await loadLibs()
+    prepModules()
+    await loadModules()
+    await loadMain()
+    cleanUp()
+    console.log(`Done loading!`)
+  }
+
+  let loadMain = async () => await load(main)
+
+  let cleanUp = () => {
+    delete global.module
+    delete global.smuggler
+  }
+
+  let loadConfig = async () => {
+    let path = await load('./smuggler.config.js')
+    console.log(`awaited ${path}!`)
+    config = parseConfig(smuggler.config)
+    loadLibs()
+  }
 
   let doneLoading = () => {
     console.log(`Done loading modules!`)
-    load(main,
-         () => {
-           // clean up after ourselves
-           delete global.module
-           delete global.smuggler
+    load(main)
+      .then(() => {
+        // clean up after ourselves
+        delete global.module
+        delete global.smuggler
 
-           console.log(`Finished bootstrap!`)
-         },
-         () => { throw Error(`Cannot find main script: ${main}.`) }
-       )
+        console.log(`Finished bootstrap!`)
+      })
+      .catch(() => { throw Error(`Cannot find main script: ${main}.`) })
   }
 
   let loadingError = (file) => {
     throw Error(`Failed to load ${file}: check the file location.`)
   }
 
+  let loadFiles_async = async (files, afterEach) => {
+    let [current, ...remaining] = files
+
+    if (!current) return
+
+    await load(current)
+    if (afterEach) afterEach(current)
+    await loadFiles_async(remaining, afterEach)
+  }
+
   let loadFiles = (files, afterEach, then) => {
     let [current, ...remaining] = files
 
     if (current) {
-      load(current, () => {
-        afterEach(current)
-        loadFiles(remaining, afterEach, then)
-      }, loadingError)
+      console.log(`Loading ${current}`)
+      load(current)
+        .then(() => {
+          afterEach(current)
+          loadFiles(remaining, afterEach, then)
+        })
+        .catch(loadingError)
     } else {
       then()
     }
   }
 
-  let loadLibs = () => {
+  let loadLibs = async () => {
+    await loadFiles_async(config.libraries)
+    console.log(`Awaited library loading!`)
+  }
+
+  let loadLibs_p = () => {
     loadFiles(config.libraries, () => {}, prepModules)
   }
 
@@ -105,22 +148,27 @@ if (typeof module !== `undefined`) throw Error(`module.exports already exists. I
     modules = config.modules.reduce(
       (obj, module) => Object.assign(pair(module, null)),
       modules)
-
-    loadModules()
   }
 
   let bindModule = (name) => {
+    console.log(`Binding module ${name}`)
+
     if (!module.exports)
       throw Error(`Module ${name} did not bind module.exports and cannot be loaded. This may be because of a script error.`)
 
     let exports = module.exports
 
     modules = Object.assign(modules, pair(name, exports))
+    console.log(`Modules now contains ${Object.keys(modules)}`)
 
     module.exports = null
   }
 
-  let loadModules = () => loadFiles(config.modules, bindModule, doneLoading)
+  let loadModules_p = () => loadFiles(config.modules, bindModule, doneLoading)
+
+  let loadModules = async () => {
+    await loadFiles_async(config.modules, bindModule)
+  }
 
   // Start fucking with global state
 
@@ -145,6 +193,6 @@ if (typeof module !== `undefined`) throw Error(`module.exports already exists. I
   }
 
   // kick of a loading frenzy
-  loadConfig()
+  bootstrap()
 
 })(window)
