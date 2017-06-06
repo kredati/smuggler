@@ -18,7 +18,7 @@ if (typeof require !== `undefined`)
     `Is there a conflict with another module loading system?`)
 
 if (typeof module !== `undefined`)
-  throw Error(`module.exports already exists. ` +
+  throw Error(`module already exists. ` +
     `Is there is a conflict with another module loading system?`)
 
 ;((global) => {
@@ -100,18 +100,6 @@ if (typeof module !== `undefined`)
     cleanUp()
   }
 
-  let cacheModule = (path) => {
-    if (module.loading)
-      throw Error(`Didn't complete loading ${modules.loading}`)
-
-    module.loading = path
-  }
-
-  let saveModule = ({path, exports}) => {
-    modules = Object.assign(modules, pair(path, exports))
-    module.loading = null
-  }
-
   /////////// Synchronous loading functions
   // turns the raw config into what data we need here
   let parseConfig = (rawConfig) => {
@@ -123,6 +111,20 @@ if (typeof module !== `undefined`)
     )
 
     return {libraries: libs, modules: mods}
+  }
+
+  // stores the module we're loading in module.loading
+  let cacheModule = (path) => {
+    if (module.loading)
+      throw Error(`Didn't complete loading ${modules.loading}`)
+
+    module.loading = path
+  }
+
+  // stores the result of module loading in the modules object
+  let saveModule = ({path, exports}) => {
+    modules = Object.assign(modules, pair(path, exports))
+    module.loading = null
   }
 
   // don't pollute the global scope
