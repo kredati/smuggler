@@ -9,10 +9,7 @@
 // Modules must be specified, in loading order, in smuggler.config.js
 // or whatever config file you pass
 
-// basic error checking: don't load in node
-
-'use strict'
-
+/////////// Basic error checking: don't load in node
 if (typeof require !== `undefined`)
   throw Error(`require is already defined. ` +
     `Is there a conflict with another module loading system?`)
@@ -21,7 +18,17 @@ if (typeof module !== `undefined`)
   throw Error(`module already exists. ` +
     `Is there is a conflict with another module loading system?`)
 
-;((global) => {
+'use strict';
+
+((global) => {
+  // construct a global module.exports object
+  let module = {}
+
+  module.exports = null
+  module.loading = null
+
+  global.module = module
+
   // get our main script, to run at the end
   let smugglerScript = document.currentScript,
     main = `./${smugglerScript.getAttribute('main')}`,
@@ -31,20 +38,32 @@ if (typeof module !== `undefined`)
   configScript = configScript || `./smuggler.config.js`
 
   // private state: config and modules
-  let modules = {}, config = {}
+  let modules = {},
+    config = {}
 
   // super handy helper functions
   let pair = (key, value) => ({[key]: value}),
-    ref = (prop) => { let result = prop; return result }
+    ref = (prop) => {
+      let result = prop
+
+      return result
+    }
 
   ////////////// CORE LOADING FUNCTIONS
   // load a script! // returns a promise for async/await goodness
   // note that exporting is a *function* that lazy-evaluates the object
   // to which the module binds, if a module
-  let load = (exporting) => (path) => {
-    if (!exporting) exporting = () => true
-    let head = document.getElementsByTagName('head').item(0),
-        script = document.createElement('script')
+  let onLoad = (resolve, reject) => (exporting) => (path) => () => {
+    let exports = exporting()
+
+    if (!exports) reject(Error(`${path} failed to export to ${exports}`))
+    resolve({path, exports})
+  }
+
+  let load = (exportingFn) => (path) => {
+    let exporting = exportingFn ? exportingFn : () => true,
+      head = document.getElementsByTagName('head').item(0),
+      script = document.createElement('script')
 
     script.setAttribute('type', 'text/javascript')
     script.setAttribute('src', `${path}`)
@@ -59,13 +78,6 @@ if (typeof module !== `undefined`)
     })
   }
 
-  let onLoad = (resolve, reject) => (exporting) => (path) => () => {
-    let exports = exporting()
-
-    if (!exports) reject(Error(`${path} failed to export to ${exports}`))
-    resolve({path, exports})
-  }
-
   // Loads an array of files asynchronously and recursively (!!!)
   // Calls beforeEach and afterEach before and after loading,
   // passes the current file path to each function
@@ -77,27 +89,11 @@ if (typeof module !== `undefined`)
       if (beforeEach) beforeEach(current)
       let results = await load(exporting)(current),
         {path, exports} = results
+
       if (afterEach) afterEach(results)
       let others = await loadFiles(exporting)(remaining, beforeEach, afterEach)
+
       return Object.assign(pair(path, exports), others)
-  }
-
-  //////////// This is where the magic happens
-  // bootstrap smuggler and then load the application
-  let bootstrap = async () => {
-    let rawConfig = await load(() => smuggler.config)(configScript)
-
-    config = parseConfig(rawConfig.exports)
-
-    let libs = await loadFiles()(config.libraries)
-
-    modules = await loadFiles(() => module.exports)
-      (config.modules, cacheModule, saveModule)
-
-    module.loading = main
-    let final = await load()(main)
-
-    cleanUp()
   }
 
   /////////// Synchronous loading functions
@@ -110,7 +106,7 @@ if (typeof module !== `undefined`)
       (mod) => `${rawConfig.modulePath}${mod}`
     )
 
-    return {libraries: libs, modules: mods}
+    return {'libraries': libs, 'modules': mods}
   }
 
   // stores the module we're loading in module.loading
@@ -150,8 +146,18 @@ if (typeof module !== `undefined`)
     isParentDir = (str) => str === '..',
     butLast = (arr) => arr.slice(0, arr.length - 1)
 
+    let crawlPath = (path, relativeTo) => {
+      let [current, ...remaining] = path
+
+      if (relativeTo.length < 1) throw Error(`Crawled too many levels.`)
+      if (isParentDir(current)) return crawlPath(remaining, butLast(relativeTo))
+
+      return relativeTo.concat(remaining)
+    }
+
   let computePath = (path, relativeTo) => {
     let [current, ...remaining] = path
+
     if (isCurrentDir(current)) return relativeTo.concat(remaining).join('/')
     if (isParentDir(current)) try {
       return crawlPath(path, relativeTo).join('/')
@@ -160,13 +166,6 @@ if (typeof module !== `undefined`)
     }
 
     throw Error(`Cannot find module at ${path.join('/')}.`)
-  }
-
-  let crawlPath = (path, relativeTo) => {
-    let [current, ...remaining] = path
-    if (relativeTo.length < 1) throw Error(`Crawled too many levels.`)
-    if (isParentDir(current)) return crawlPath(remaining, butLast(relativeTo))
-    return relativeTo.concat(remaining)
   }
 
   // the require goodness // it's remarkably easy!
@@ -191,19 +190,31 @@ if (typeof module !== `undefined`)
 
   // give smuggler a global object to work with
   // config loads itself into this object
-  global.smuggler = {}
+  let smuggler = {}
 
-  // construct a global module.exports object
-  let module = {}
-
-  module.exports = null
-  module.loading = null
-
-  global.module = module
+  global.smuggler = smuggler
 
   // export require into global scope
   // this will be the only one not removed
   global.require = require
+
+  //////////// This is where the magic happens
+  // bootstrap smuggler and then load the application
+  let bootstrap = async () => {
+    let rawConfig = await load(() => smuggler.config)(configScript)
+
+    config = parseConfig(rawConfig.exports)
+
+    let libs = await loadFiles()(config.libraries)
+
+    modules = await loadFiles(() => module.exports)(config.modules,
+      cacheModule, saveModule)
+
+    module.loading = main
+    let final = await load()(main)
+
+    cleanUp()
+  }
 
   // load it up!
   bootstrap()
