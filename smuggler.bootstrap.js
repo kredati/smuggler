@@ -103,7 +103,7 @@ if (typeof module !== `undefined`)
     if (!exports) reject(
       Error(buildErrorMsg(errors.NO_EXPORT(path, exporting)))
     )
-    resolve({path, exports})
+    resolve({path, exports: Object.freeze(exports)})
   }
 
   let load = (exportingFn) => (path) => {
@@ -134,10 +134,12 @@ if (typeof module !== `undefined`)
       if (!current) return {}
 
       if (beforeEach) beforeEach(current)
+
       let results = await load(exporting)(current),
         {path, exports} = results
 
       if (afterEach) afterEach(results)
+
       let others = await loadFiles(exporting)(remaining, beforeEach, afterEach)
 
       return Object.assign(pair(path, exports), others)
