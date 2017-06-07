@@ -2,13 +2,15 @@
 ## Brings you unauthorized `exports`
 
 ### What
-Node-style `exports` and `require` in-browser, using ES7 async/await.
+Node-style (~CommonJS) `exports` and `require` in-browser, using ES7 async/await.
 
-It works well enough. It makes a number of compromises. It does not target older browsers. You should use Webpack or Browserify or RequireJS. This is all stopgap until we finally get ES6 modules—any time now.
+It works well enough for simple purposes. It makes a number of compromises. It does not target older browsers. You should use Webpack or Browserify or RequireJS. This is all stopgap until we finally get ES6 modules—any time now.
 
 Smuggler bootstraps itself, then loads all specified scripts naïvely. Then it loads all specified modules, making them available for `require` calls as it goes. The semantics of these `require`s precisely shadow node's. This exposes node's testing and other capacities, and allows authors to target both node and the browser at the same time.
 
-In this, Smuggler is not unique. However, unlike Require1K (which loads scripts *without* a config file, among other goodies) Smuggler maintains the line numbers of the source modules for debugging and works on a local machine. Meanwhile, it's much simpler to use than RequireJS, and enforces node's (8.0.0) precise `require` semantics.
+In this, Smuggler is not unique. However, unlike Require1K (which loads scripts *without* a config file, among other goodies) Smuggler maintains the line numbers of the source modules for debugging and works on a local machine. Meanwhile, it's much simpler to use than RequireJS, and enforces node's (8.0.0) precise `module.exports` and `require` semantics.
+
+At current Smuggler does not parse an npm `package.json` and then try to locate dependencies in `node_modules`. This would be nice, wouldn't it? But probably it's a hard problem that leads to wailing and gnashing of teeth, as a naïve `npm install foo` is probably best avoided in a bare browser environment. (You should be using Webpack.)
 
 ### Why
 Smuggler was developed as part of turtle.js. Turtle.js is deeply pedagogical, functional turtle graphics in JS. Turtle.js is meant to be downloaded and used locally, and also to expose its entire codebase to learners. The aspiration is that the entire codebase would be comprehensible as the curriculum progresses. At current, Smuggler doesn't come close to succeeding in that aspiration. File loading is messy and stateful and procedural plumbing.
