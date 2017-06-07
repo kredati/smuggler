@@ -57,4 +57,4 @@ module.exports = (() => {
 
 })()
 ```
-Calls to `require` follow node's rules: `require` takes a string containing the path to the `require`d JS file, *relative to the location of the file in which `require` is called*. It works with calls to the parent directory (e.g. `require('../foo.js')`), but will not let you climb further up the directory tree than the application root. The argument passed to `require` must begin with either `./` or `../` (and cannot begin with `/` to specify the application root, and cannot omit `./` to specify the current module's directory).
+Calls to `require` follow node's rules: `require` takes a string containing the path to the `require`d JS file, *relative to the location of the file in which `require` is called*. It works with calls to the parent directory (e.g. `require('../foo.js')`), but will not let you climb further up the directory tree than the application root. The argument passed to `require` must begin with either `./` or `../` (and cannot begin with `/` to specify the application root, and cannot omit `./` to specify the current module's directory). The `.js` extension is optional.
