@@ -5,6 +5,7 @@
 // In each, specify the path to library or module files
 // And the files to load in each
 
+/* global smuggler */
 smuggler.config = {
 
   // Libraries include code already packaged for browsers
@@ -16,10 +17,10 @@ smuggler.config = {
   // violate many browers' security policies.
 
   // Set library directory default; ends with a slash
-  libraryPath: './lib/',
+  scriptPath: './scripts/',
 
   // List libraries in loading order
-  libraries: [],
+  scripts: [],
 
   // Modules are Node-style Common JS exports
 
@@ -38,7 +39,7 @@ smuggler.config = {
   // if script x `require`s script y, y must PRECEDE x in this list.
 
   // Set module directory default; ends with a slash
-  modulePath: './app/',
+  modulePath: './modules/',
 
   // List modules in loading order
   modules: []

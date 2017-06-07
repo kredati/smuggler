@@ -9,6 +9,8 @@
 // Modules must be specified, in loading order, in smuggler.config.js
 // or whatever config file you pass
 
+/* eslint new-cap: "off" */
+
 /////////// Basic error checking: don't load in node
 if (typeof require !== `undefined`)
   throw Error(`require is already defined. ` +
@@ -32,10 +34,52 @@ if (typeof module !== `undefined`)
   // get our main script, to run at the end
   let smugglerScript = document.currentScript,
     main = `./${smugglerScript.getAttribute('main')}`,
-    configScript = `./${smugglerScript.getAttribute('config')}`
+    configScript = smugglerScript.getAttribute('config')
 
   // default value for config location
-  configScript = configScript || `./smuggler.config.js`
+  if (configScript) configScript = `./${configScript}`
+  if (!configScript) configScript = `./smuggler.config.js`
+
+  /////////////// HELPFUL/VERBOSE ERROR MESSAGES
+  let errors = {
+    LOAD_CONFIG: (path) => `Could not load config file at ${path}. ` +
+      `Check to make sure there is a properly-formed ` +
+      `Smuggler config file at ${path}. ` +
+      `Consult the Smuggler docs for config file specs`,
+    LOAD_SCRIPTS: () => `Could not load scripts`,
+    LOAD_MODULES: () => `Could not load modules`,
+    LOAD_MAIN: (path) => `Could not load main script at ${path}. ` +
+      `Double check that the main attribute in the Smuggler bootstrap ` +
+      `<script> tag is pointing at the correct file`,
+    REQUIRE_MODULE: (path) => `Tried to require module at ${path} ` +
+      `that has not been loaded. Check that there is a module at ${path}, ` +
+      `for circular dependencies, and for proper module loading ` +
+      `order in Smuggler config file`,
+    LOAD_FILE: (path) => `Could not load file at ${path}`,
+    NO_EXPORT: (path, exporting) => `${path} failed to export to ` +
+      `${exporting}. This could be because there is an error in the file ` +
+      `or because it does not bind anything to its export object ` +
+      `(module.exports for a module, smuggler.config for a config file). ` +
+      `Check to make sure you are not loading a script as a module, ` +
+      `that you include a return statement in a module's IIFE, ` +
+      `or that the config file binds properly to smuggler.config`,
+    LOADING_INCOMPLETE: (path) => `File at ${path} did not complete loading. ` +
+      `There may be an error in the file`,
+    OUT_OF_SCOPE: () => `Cannot load files above app root. Check ` +
+      `your paths in require calls`,
+    MODULE_NOT_FOUND: (path) => `Could not find module at ${path}`,
+    BAD_PATH: () => `The specified path is invalid. It must start with ` +
+      `either './' or '../', and sepcify a path relative to the module ` +
+      `from which it is required`,
+    INVALID_PATH: (path, relative) => `Could not load module at ${path} ` +
+      `relative to ${relative} because the path is invalid`,
+    REQUIRE_STRING: (path) => `Paths passed to require must be strings. ` +
+      `${path} is a(n) ${typeof path}`
+  }
+
+  let buildErrorMsg = (errorMsg, e) =>
+    e ? `${errorMsg}.\n\nEncountered:\n${e}`
+    : errorMsg
 
   // private state: config and modules
   let modules = {},
@@ -56,7 +100,9 @@ if (typeof module !== `undefined`)
   let onLoad = (resolve, reject) => (exporting) => (path) => () => {
     let exports = exporting()
 
-    if (!exports) reject(Error(`${path} failed to export to ${exports}`))
+    if (!exports) reject(
+      Error(buildErrorMsg(errors.NO_EXPORT(path, exporting)))
+    )
     resolve({path, exports})
   }
 
@@ -74,7 +120,8 @@ if (typeof module !== `undefined`)
       script.addEventListener('load',
         onLoad(resolve, reject)(exporting)(path))
       script.addEventListener('error',
-        (e) => reject(Error(`Failed to load file at ${path}.`)))
+        () => reject(Error(buildErrorMsg(errors.LOAD_FILE(path)))
+      ))
     })
   }
 
@@ -99,14 +146,14 @@ if (typeof module !== `undefined`)
   /////////// Synchronous loading functions
   // turns the raw config into what data we need here
   let parseConfig = (rawConfig) => {
-    let libs = rawConfig.libraries.map(
-      (lib) => `${rawConfig.libraryPath}${lib}`
+    let scripts = rawConfig.scripts.map(
+      (script) => `${rawConfig.scriptPath}${script}`
     ),
     mods = rawConfig.modules.map(
       (mod) => `${rawConfig.modulePath}${mod}`
     )
 
-    return {'libraries': libs, 'modules': mods}
+    return {scripts, modules: mods}
   }
 
   // stores the module we're loading in module.loading
@@ -149,7 +196,10 @@ if (typeof module !== `undefined`)
     let crawlPath = (path, relativeTo) => {
       let [current, ...remaining] = path
 
-      if (relativeTo.length < 1) throw Error(`Crawled too many levels.`)
+      if (relativeTo.length < 1)
+        throw Error(buildErrorMsg(
+          errors.OUT_OF_SCOPE()
+        ))
       if (isParentDir(current)) return crawlPath(remaining, butLast(relativeTo))
 
       return relativeTo.concat(remaining)
@@ -159,30 +209,33 @@ if (typeof module !== `undefined`)
     let [current, ...remaining] = path
 
     if (isCurrentDir(current)) return relativeTo.concat(remaining).join('/')
-    if (isParentDir(current)) try {
-      return crawlPath(path, relativeTo).join('/')
-    } catch (e) {
-      throw Error(`Cannot find module at ${path.join('/')}.`)
-    }
+    if (isParentDir(current)) return crawlPath(path, relativeTo).join('/')
 
-    throw Error(`Cannot find module at ${path.join('/')}.`)
+    throw Error(buildErrorMsg(errors.BAD_PATH(path)))
   }
 
   // the require goodness // it's remarkably easy!
   let require = (path) => {
-    let loadingFrom = parsePath(module.loading),
-      relative = parsePath(path),
-      absolute = computePath(relative.path, loadingFrom.path),
+    if (typeof path !== 'string')
+      throw Error(buildErrorMsg(errors.REQUIRE_STRING(path)))
+
+    let requirePath
+
+    try {
+      let loadingFrom = parsePath(module.loading),
+        relative = parsePath(path),
+        absolute = computePath(relative.path, loadingFrom.path)
+
       requirePath = `${absolute}/${relative.file}`
+    } catch (e) {
+      throw Error(buildErrorMsg(errors.INVALID_PATH(path, module.loading), e))
+    }
 
     let required = modules[requirePath]
 
     if (required) return required
 
-    throw Error(`Module at ${path} has not been loaded. ` +
-                `Check that there is a module at ${path}, ` +
-                `for circular dependencies, and for proper loading ` +
-                `order in smuggler config file.`)
+    throw Error(buildErrorMsg(errors.REQUIRE_MODULE(path)))
   }
 
   ////////////// STOP DEFINING FUNCTIONS
@@ -201,17 +254,33 @@ if (typeof module !== `undefined`)
   //////////// This is where the magic happens
   // bootstrap smuggler and then load the application
   let bootstrap = async () => {
-    let rawConfig = await load(() => smuggler.config)(configScript)
+    try {
+      let rawConfig = await load(() => smuggler.config)(configScript)
 
-    config = parseConfig(rawConfig.exports)
+      config = parseConfig(rawConfig.exports)
+    } catch (e) {
+      throw Error(buildErrorMsg(errors.LOAD_CONFIG(configScript), e))
+    }
 
-    let libs = await loadFiles()(config.libraries)
+    try {
+      let scripts = await loadFiles()(config.scripts)
+    } catch (e) {
+      throw Error(buildErrorMsg(errors.LOAD_SCRIPTS(), e))
+    }
 
-    modules = await loadFiles(() => module.exports)(config.modules,
-      cacheModule, saveModule)
+    try {
+      modules = await
+        loadFiles(() => module.exports)(config.modules, cacheModule, saveModule)
+    } catch (e) {
+      throw Error(buildErrorMsg(errors.LOAD_MODULES(), e))
+    }
 
-    module.loading = main
-    let final = await load()(main)
+    try {
+      module.loading = main
+      let final = await load()(main)
+    } catch (e) {
+      throw Error(buildErrorMsg(errors.LOAD_MAIN(main), e))
+    }
 
     cleanUp()
   }
