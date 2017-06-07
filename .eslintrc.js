@@ -66,7 +66,7 @@ module.exports = {
             "expression"
         ],
         "generator-star-spacing": "error",
-        "global-require": "error",
+        "global-require": "off",
         "guard-for-in": "error",
         "handle-callback-err": "error",
         "id-blacklist": "error",

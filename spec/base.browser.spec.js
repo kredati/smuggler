@@ -11,11 +11,18 @@ describe(`Smuggler's browser-facing side`, () => {
   })
 
   it(`should load a simple module`, () => {
-    expect(require(`./app/test_module_2.js`)).toEqual({bar: 'baz'})
+    expect(require(`./modules/test_module_2.js`)).toEqual({bar: 'baz'})
   })
 
   it(`should load a nested module`, () => {
-    expect(require(`./app/test_module.js`)).toEqual({foo: {bar: 'baz'}})
+    expect(require(`./modules/test_module.js`)).toEqual({foo: {bar: 'baz'}})
+  })
+
+  it(`should load modules with or without specifying a .js extension`, () => {
+    let test1 = require(`./modules/test_module`),
+      test2 = require(`./modules/test_module.js`)
+
+    expect(test1).toEqual(test2)
   })
 
   it(`should reject a request to load a module at a malformed path`, () => {

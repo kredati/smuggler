@@ -1,1 +1,1 @@
-let test = require('./app/test_module.js')
+let test = require('./modules/test_module.js')

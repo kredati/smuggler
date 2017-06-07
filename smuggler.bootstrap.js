@@ -93,6 +93,11 @@ if (typeof module !== `undefined`)
       return result
     }
 
+  ////////////// A HELPFUL FILENAME PARSER
+  let withJS = (path) => path.endsWith(".js")
+    ? path
+    : path.concat(".js")
+
   ////////////// CORE LOADING FUNCTIONS
   // load a script! // returns a promise for async/await goodness
   // note that exporting is a *function* that lazy-evaluates the object
@@ -112,7 +117,7 @@ if (typeof module !== `undefined`)
       script = document.createElement('script')
 
     script.setAttribute('type', 'text/javascript')
-    script.setAttribute('src', `${path}`)
+    script.setAttribute('src', `${withJS(path)}`)
 
     head.appendChild(script)
 
@@ -228,7 +233,7 @@ if (typeof module !== `undefined`)
         relative = parsePath(path),
         absolute = computePath(relative.path, loadingFrom.path)
 
-      requirePath = `${absolute}/${relative.file}`
+      requirePath = withJS(`${absolute}/${relative.file}`)
     } catch (e) {
       throw Error(buildErrorMsg(errors.INVALID_PATH(path, module.loading), e))
     }
