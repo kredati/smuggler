@@ -13,7 +13,8 @@ smuggler.config = {
   modules: [
     // 'app/test_module_4.js', // does not bind module.exports, should throw
     'test_module_3.js',
-    'modules/test_module_2.js',
+    // should load modules w/o .js // should not throw
+    'modules/test_module_2',
     'modules/test_module.js'
   ]
 }

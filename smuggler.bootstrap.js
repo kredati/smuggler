@@ -102,9 +102,8 @@ if (typeof module !== `undefined`)
   // load a script! // returns a promise for async/await goodness
   // note that exporting is a *function* that lazy-evaluates the object
   // to which the module binds, if a module
-  let onLoad = (resolve, reject) => (exporting) => (rawPath) => () => {
-    let exports = exporting(),
-      path = withJS(rawPath)
+  let onLoad = (resolve, reject) => (exporting) => (path) => () => {
+    let exports = exporting()
 
     if (!exports) reject(
       Error(buildErrorMsg(errors.NO_EXPORT(path, exporting)))
@@ -112,8 +111,9 @@ if (typeof module !== `undefined`)
     resolve({path, exports: Object.freeze(exports)})
   }
 
-  let load = (exportingFn) => (path) => {
+  let load = (exportingFn) => (rawPath) => {
     let exporting = exportingFn ? exportingFn : () => true,
+      path = withJS(rawPath),
       head = document.getElementsByTagName('head').item(0),
       script = document.createElement('script')
 
@@ -170,6 +170,7 @@ if (typeof module !== `undefined`)
       throw Error(`Didn't complete loading ${modules.loading}`)
 
     module.loading = path
+    module.exports = null
   }
 
   // stores the result of module loading in the modules object
