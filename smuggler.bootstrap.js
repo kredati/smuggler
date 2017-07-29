@@ -13,16 +13,18 @@
 
 /////////// Basic error checking: don't load in node
 if (typeof require !== `undefined`)
-  throw Error(`require is already defined. ` +
-    `Is there a conflict with another module loading system?`)
+  throw Error(
+    `require is already defined. ` +
+      `Is there a conflict with another module loading system?`
+  )
 
 if (typeof module !== `undefined`)
-  throw Error(`module already exists. ` +
-    `Is there is a conflict with another module loading system?`)
-
-'use strict';
-
-((global) => {
+  throw Error(
+    `module already exists. ` +
+      `Is there is a conflict with another module loading system?`
+  )
+;'use strict'
+;((global) => {
   // construct a global module.exports object
   let module = {}
 
@@ -42,72 +44,72 @@ if (typeof module !== `undefined`)
 
   /////////////// HELPFUL/VERBOSE ERROR MESSAGES
   let errors = {
-    LOAD_CONFIG: (path) => `Could not load config file at ${path}. ` +
+    LOAD_CONFIG: (path) =>
+      `Could not load config file at ${path}. ` +
       `Check to make sure there is a properly-formed ` +
       `Smuggler config file at ${path}. ` +
       `Consult the Smuggler docs for config file specs`,
     LOAD_SCRIPTS: () => `Could not load scripts`,
     LOAD_MODULES: () => `Could not load modules`,
-    LOAD_MAIN: (path) => `Could not load main script at ${path}. ` +
+    LOAD_MAIN: (path) =>
+      `Could not load main script at ${path}. ` +
       `Double check that the main attribute in the Smuggler bootstrap ` +
       `<script> tag is pointing at the correct file`,
-    REQUIRE_MODULE: (path) => `Tried to require module at ${path} ` +
+    REQUIRE_MODULE: (path) =>
+      `Tried to require module at ${path} ` +
       `that has not been loaded. Check that there is a module at ${path}, ` +
       `for circular dependencies, and for proper module loading ` +
       `order in Smuggler config file`,
     LOAD_FILE: (path) => `Could not load file at ${path}`,
-    NO_EXPORT: (path, exporting) => `${path} failed to export to ` +
+    NO_EXPORT: (path, exporting) =>
+      `${path} failed to export to ` +
       `${exporting}. This could be because there is an error in the file ` +
       `or because it does not bind anything to its export object ` +
       `(module.exports for a module, smuggler.config for a config file). ` +
       `Check to make sure you are not loading a script as a module, ` +
       `that you include a return statement in a module's IIFE, ` +
       `or that the config file binds properly to smuggler.config`,
-    LOADING_INCOMPLETE: (path) => `File at ${path} did not complete loading. ` +
+    LOADING_INCOMPLETE: (path) =>
+      `File at ${path} did not complete loading. ` +
       `There may be an error in the file`,
-    OUT_OF_SCOPE: () => `Cannot load files above app root. Check ` +
+    OUT_OF_SCOPE: () =>
+      `Cannot load files above app root. Check ` +
       `your paths in require calls`,
     MODULE_NOT_FOUND: (path) => `Could not find module at ${path}`,
-    BAD_PATH: () => `The specified path is invalid. It must start with ` +
+    BAD_PATH: () =>
+      `The specified path is invalid. It must start with ` +
       `either './' or '../', and sepcify a path relative to the module ` +
       `from which it is required`,
-    INVALID_PATH: (path, relative) => `Could not load module at ${path} ` +
+    INVALID_PATH: (path, relative) =>
+      `Could not load module at ${path} ` +
       `relative to ${relative} because the path is invalid`,
-    REQUIRE_STRING: (path) => `Paths passed to require must be strings. ` +
+    REQUIRE_STRING: (path) =>
+      `Paths passed to require must be strings. ` +
       `${path} is a(n) ${typeof path}`
   }
 
   let buildErrorMsg = (errorMsg, e) =>
-    e ? `${errorMsg}.\n\nEncountered:\n${e}`
-    : errorMsg
+    e ? `${errorMsg}.\n\nEncountered:\n${e}` : errorMsg
 
   // private state: config and modules
   let modules = {},
     config = {}
 
   // super handy helper functions
-  let pair = (key, value) => ({[key]: value}),
-    ref = (prop) => {
-      let result = prop
-
-      return result
-    }
+  let pair = (key, value) => ({[key]: value})
 
   ////////////// A HELPFUL FILENAME PARSER
-  let withJS = (path) => path.endsWith(".js")
-    ? path
-    : path.concat(".js")
+  let withJS = (path) => path.endsWith('.js') ? path : path.concat('.js')
 
   ////////////// CORE LOADING FUNCTIONS
   // load a script! // returns a promise for async/await goodness
-  // note that exporting is a *function* that lazy-evaluates the object
+  // note that `exporting` is a *function* that lazy-evaluates the object
   // to which the module binds, if a module
   let onLoad = (resolve, reject) => (exporting) => (path) => () => {
     let exports = exporting()
 
-    if (!exports) reject(
-      Error(buildErrorMsg(errors.NO_EXPORT(path, exporting)))
-    )
+    if (!exports)
+      reject(Error(buildErrorMsg(errors.NO_EXPORT(path, exporting))))
     resolve({path, exports: Object.freeze(exports)})
   }
 
@@ -123,11 +125,10 @@ if (typeof module !== `undefined`)
     head.appendChild(script)
 
     return new Promise((resolve, reject) => {
-      script.addEventListener('load',
-        onLoad(resolve, reject)(exporting)(path))
-      script.addEventListener('error',
-        () => reject(Error(buildErrorMsg(errors.LOAD_FILE(path)))
-      ))
+      script.addEventListener('load', onLoad(resolve, reject)(exporting)(path))
+      script.addEventListener('error', () =>
+        reject(Error(buildErrorMsg(errors.LOAD_FILE(path))))
+      )
     })
   }
 
@@ -135,31 +136,29 @@ if (typeof module !== `undefined`)
   // Calls beforeEach and afterEach before and after loading,
   // passes the current file path to each function
   let loadFiles = (exporting) => async (files, beforeEach, afterEach) => {
-      let [current, ...remaining] = files
+    let [current, ...remaining] = files
 
-      if (!current) return {}
+    if (!current) return {}
 
-      if (beforeEach) beforeEach(current)
+    if (beforeEach) beforeEach(current)
 
-      let results = await load(exporting)(current),
-        {path, exports} = results
+    let results = await load(exporting)(current),
+      {path, exports} = results
 
-      if (afterEach) afterEach(results)
+    if (afterEach) afterEach(results)
 
-      let others = await loadFiles(exporting)(remaining, beforeEach, afterEach)
+    let others = await loadFiles(exporting)(remaining, beforeEach, afterEach)
 
-      return Object.assign(pair(path, exports), others)
+    return Object.assign(pair(path, exports), others)
   }
 
   /////////// Synchronous loading functions
   // turns the raw config into what data we need here
   let parseConfig = (rawConfig) => {
     let scripts = rawConfig.scripts.map(
-      (script) => `${rawConfig.scriptPath}${script}`
-    ),
-    mods = rawConfig.modules.map(
-      (mod) => `${rawConfig.modulePath}${mod}`
-    )
+        (script) => `${rawConfig.scriptPath}${script}`
+      ),
+      mods = rawConfig.modules.map((mod) => `${rawConfig.modulePath}${mod}`)
 
     return {scripts, modules: mods}
   }
@@ -202,17 +201,14 @@ if (typeof module !== `undefined`)
     isParentDir = (str) => str === '..',
     butLast = (arr) => arr.slice(0, arr.length - 1)
 
-    let crawlPath = (path, relativeTo) => {
-      let [current, ...remaining] = path
+  let crawlPath = (path, relativeTo) => {
+    let [current, ...remaining] = path
 
-      if (relativeTo.length < 1)
-        throw Error(buildErrorMsg(
-          errors.OUT_OF_SCOPE()
-        ))
-      if (isParentDir(current)) return crawlPath(remaining, butLast(relativeTo))
+    if (relativeTo.length < 1) throw Error(buildErrorMsg(errors.OUT_OF_SCOPE()))
+    if (isParentDir(current)) return crawlPath(remaining, butLast(relativeTo))
 
-      return relativeTo.concat(remaining)
-    }
+    return relativeTo.concat(remaining)
+  }
 
   let computePath = (path, relativeTo) => {
     let [current, ...remaining] = path
@@ -278,8 +274,11 @@ if (typeof module !== `undefined`)
     }
 
     try {
-      modules = await
-        loadFiles(() => module.exports)(config.modules, cacheModule, saveModule)
+      modules = await loadFiles(() => module.exports)(
+        config.modules,
+        cacheModule,
+        saveModule
+      )
     } catch (e) {
       throw Error(buildErrorMsg(errors.LOAD_MODULES(), e))
     }
@@ -296,5 +295,4 @@ if (typeof module !== `undefined`)
 
   // load it up!
   bootstrap()
-
 })(window)
